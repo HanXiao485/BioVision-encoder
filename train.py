@@ -7,7 +7,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 from datasets.cifar import CIFAR10Manager,CIFAR100Manager
 from models.simple_mlp import SimpleMLP
-from models.attention import AttentionNet, MultiHeadAttentionNet
+from models.attention import AttentionNet
+from models.transformer import TransformerClassifier
 from utils.metrics import calculate_accuracy
 from utils.checkpoint import save_checkpoint
 
@@ -33,10 +34,18 @@ def main(args):
     num_classes = len(set(train_loader.dataset.targets))
 
     # 2. init models
-    model = AttentionNet(input_dim=input_dim, 
-                         hidden_dim=args.hidden, 
-                         num_classes=num_classes, 
-                         num_heads=8).to(device)
+    # model = AttentionNet(input_dim=input_dim, 
+    #                      hidden_dim=args.hidden, 
+    #                      num_classes=num_classes, 
+    #                      num_heads=8).to(device)
+    model = TransformerClassifier(
+                            input_dim=input_dim,   
+                            hidden_dim=256,
+                            num_tokens=64,  
+                            num_heads=16,
+                            num_layers=4,
+                            num_classes=num_classes
+                        ).to(device)
 
     best_acc = 0.0
     
@@ -91,7 +100,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CIFAR10 MLP Training")
     parser.add_argument('--use_tb', action='store_true', default=True, help='use_tensorboard')
-    parser.add_argument('--exp_name', type=str, default='multiheadattention1', help='exp_name')
+    parser.add_argument('--exp_name', type=str, default='transformers16', help='exp_name')
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=10)

@@ -2,12 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class SelfAttention(nn.Module):
     def __init__(self, hidden_dim, num_heads=1):
         """
-        hidden_dim: 注意力特征维度
-        num_heads: 注意力头数
+        hidden_dim: Dimension of the attention features
+        num_heads: Number of attention heads
         """
         super().__init__()
         assert hidden_dim % num_heads == 0, "hidden_dim must be divisible by num_heads"
@@ -22,24 +21,27 @@ class SelfAttention(nn.Module):
 
     def forward(self, x):
         """
-        x: (B, T, D)
-        return: (B, T, D)
+        x: Input tensor of shape (B, T, D)
+        return: Output tensor of shape (B, T, D)
         """
         B, T, D = x.shape
 
-        # QKV 投影
+        # QKV Projection
         qkv = self.qkv_proj(x)  # (B, T, 3*D)
-        # reshape 成 (3, B, H, T, D_head)
+        
+        # Reshape to (3, B, H, T, D_head) and permute for multi-head calculation
         qkv = qkv.view(B, T, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        Q, K, V = qkv  # 每个都是 (B, H, T, D_head)
+        Q, K, V = qkv  # Each tensor has shape (B, H, T, D_head)
 
-        # scaled dot-product attention
+        # Scaled dot-product attention
+        # (B, H, T, D_head) @ (B, H, D_head, T) -> (B, H, T, T)
         attn = torch.matmul(Q, K.transpose(-2, -1)) / (self.head_dim ** 0.5)
         attn = F.softmax(attn, dim=-1)
 
-        x = torch.matmul(attn, V)  # (B, H, T, D_head)
+        # (B, H, T, T) @ (B, H, T, D_head) -> (B, H, T, D_head)
+        x = torch.matmul(attn, V)  
 
-        # merge heads
+        # Merge heads
         x = x.transpose(1, 2).contiguous()  # (B, T, H, D_head)
         x = x.view(B, T, self.hidden_dim)   # (B, T, D)
 
@@ -59,8 +61,8 @@ class TokenEmbedding(nn.Module):
 
     def forward(self, x):
         """
-        x: (B, ..., input_dim)
-        return: (B, T, D)
+        x: Input tensor of shape (B, ..., input_dim)
+        return: Output tensor of shape (B, T, D)
         """
         B = x.size(0)
         x = self.flatten(x)
@@ -78,7 +80,7 @@ class AttentionEncoder(nn.Module):
             num_tokens=num_tokens
         )
 
-        self.attn = SelfAttention(hidden_dim, num_heads = num_heads)
+        self.attn = SelfAttention(hidden_dim, num_heads=num_heads)
 
     def forward(self, x):
         x = self.embedding(x)     # (B, T, D)
@@ -94,11 +96,13 @@ class ClassificationHead(nn.Module):
 
     def forward(self, x):
         """
-        x: (B, T, D)
+        x: Input tensor of shape (B, T, D)
         """
         if self.pooling == "mean":
+            # Global Average Pooling across tokens
             x = x.mean(dim=1)
         elif self.pooling == "cls":
+            # Use the first token for classification
             x = x[:, 0]
         else:
             raise ValueError(f"Unknown pooling: {self.pooling}")
@@ -132,142 +136,3 @@ class AttentionNet(nn.Module):
     def forward(self, x):
         x = self.encoder(x)   # (B, T, D)
         return self.head(x)
-    
-
-
-
-# class AttentionNet(nn.Module):
-#     def __init__(self, input_dim=3072, hidden_dim=512, num_classes=100, num_tokens=32):
-#         """
-#         input_dim: 总输入维度（与 SimpleMLP 保持一致）
-#         hidden_dim: attention 中的特征维度
-#         num_classes: 分类数
-#         num_tokens: 将 input_dim 切分成多少个 token
-#         """
-#         super(AttentionNet, self).__init__()
-
-#         assert input_dim % num_tokens == 0
-#         self.num_tokens = num_tokens
-#         self.token_dim = input_dim // num_tokens
-
-#         self.flatten = nn.Flatten()
-
-#         # token embedding
-#         self.token_proj = nn.Linear(self.token_dim, hidden_dim)
-
-#         # self-attention (单头)
-#         self.q_proj = nn.Linear(hidden_dim, hidden_dim)
-#         self.k_proj = nn.Linear(hidden_dim, hidden_dim)
-#         self.v_proj = nn.Linear(hidden_dim, hidden_dim)
-
-#         self.out_proj = nn.Linear(hidden_dim, hidden_dim)
-
-#         # classifier head
-#         self.classifier = nn.Linear(hidden_dim, num_classes)
-
-#     def forward(self, x):
-#         """
-#         x: (B, ..., input_dim)
-#         """
-#         B = x.size(0)
-#         x = self.flatten(x)                     # (B, input_dim)
-#         x = x.view(B, self.num_tokens, -1)      # (B, T, token_dim)
-
-#         x = self.token_proj(x)                  # (B, T, hidden_dim)
-
-#         # self-attention
-#         Q = self.q_proj(x)                      # (B, T, D)
-#         K = self.k_proj(x)
-#         V = self.v_proj(x)
-
-#         attn = torch.matmul(Q, K.transpose(-2, -1)) / (Q.size(-1) ** 0.5)
-#         attn = F.softmax(attn, dim=-1)
-
-#         x = torch.matmul(attn, V)               # (B, T, D)
-#         x = self.out_proj(x)
-
-#         # pooling (等价于 MLP 中的 flatten 后全连接)
-#         x = x.mean(dim=1)                       # (B, D)
-
-#         return self.classifier(x)
-
-
-
-
-
-
-
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-
-# class MultiHeadAttentionNet(nn.Module):
-#     def __init__(
-#         self,
-#         input_dim=3072,
-#         hidden_dim=512,
-#         num_classes=100,
-#         num_tokens=128,
-#         num_heads=8
-#     ):
-#         super(MultiHeadAttentionNet, self).__init__()
-
-#         assert input_dim % num_tokens == 0
-#         assert hidden_dim % num_heads == 0
-
-#         self.num_tokens = num_tokens
-#         self.num_heads = num_heads
-#         self.head_dim = hidden_dim // num_heads
-
-#         self.flatten = nn.Flatten()
-
-#         # token embedding
-#         self.token_dim = input_dim // num_tokens
-#         self.token_proj = nn.Linear(self.token_dim, hidden_dim)
-
-#         # QKV projection（一次性投影，效率更高）
-#         self.qkv_proj = nn.Linear(hidden_dim, hidden_dim * 3)
-
-#         # output projection
-#         self.out_proj = nn.Linear(hidden_dim, hidden_dim)
-
-#         # classifier
-#         self.classifier = nn.Linear(hidden_dim, num_classes)
-
-#     def forward(self, x):
-#         """
-#         x: (B, ..., input_dim)
-#         """
-#         B = x.size(0)
-
-#         # flatten + tokenize
-#         x = self.flatten(x)                        # (B, input_dim)
-#         x = x.view(B, self.num_tokens, -1)         # (B, T, token_dim)
-#         x = self.token_proj(x)                     # (B, T, hidden_dim)
-
-#         # QKV
-#         qkv = self.qkv_proj(x)                     # (B, T, 3*hidden_dim)
-#         qkv = qkv.view(
-#             B, self.num_tokens, 3, self.num_heads, self.head_dim
-#         ).permute(2, 0, 3, 1, 4)
-#         # qkv: (3, B, H, T, D_head)
-
-#         Q, K, V = qkv[0], qkv[1], qkv[2]
-
-#         # scaled dot-product attention
-#         attn = torch.matmul(Q, K.transpose(-2, -1))
-#         attn = attn / (self.head_dim ** 0.5)
-#         attn = F.softmax(attn, dim=-1)
-
-#         x = torch.matmul(attn, V)                  # (B, H, T, D_head)
-
-#         # merge heads
-#         x = x.transpose(1, 2).contiguous()         # (B, T, H, D_head)
-#         x = x.view(B, self.num_tokens, -1)         # (B, T, hidden_dim)
-
-#         x = self.out_proj(x)                       # (B, T, hidden_dim)
-
-#         # global pooling (对应 MLP 的 flatten + FC)
-#         x = x.mean(dim=1)                          # (B, hidden_dim)
-
-#         return self.classifier(x)
