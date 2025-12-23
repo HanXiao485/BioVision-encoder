@@ -5,8 +5,9 @@ import argparse
 import os
 from torch.utils.tensorboard import SummaryWriter
 
-from datasets.cifar10 import CIFAR10Manager
+from datasets.cifar import CIFAR10Manager,CIFAR100Manager
 from models.simple_mlp import SimpleMLP
+from models.attention import AttentionNet, MultiHeadAttentionNet
 from utils.metrics import calculate_accuracy
 from utils.checkpoint import save_checkpoint
 
@@ -22,16 +23,20 @@ def main(args):
         print("==> TensorBoard logging disabled.")
     
     # 1. load datasets
-    dm = CIFAR10Manager(batch_size=args.batch_size)
+    dm = CIFAR100Manager(batch_size=args.batch_size)
     train_loader = dm.get_loader(train=True)
     test_loader = dm.get_loader(train=False)
 
     sample_batch, _ = next(iter(train_loader))
     input_shape = sample_batch.shape[1:]  # [channel, height, width]
     input_dim = input_shape[0] * input_shape[1] * input_shape[2] 
+    num_classes = len(set(train_loader.dataset.targets))
 
     # 2. init models
-    model = SimpleMLP(input_dim=input_dim, hidden_dim=args.hidden).to(device)
+    model = AttentionNet(input_dim=input_dim, 
+                         hidden_dim=args.hidden, 
+                         num_classes=num_classes, 
+                         num_heads=8).to(device)
 
     best_acc = 0.0
     
@@ -85,8 +90,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CIFAR10 MLP Training")
-    parser.add_argument('--use_tb', action='store_true', help='use_tensorboard')
-    parser.add_argument('--exp_name', type=str, default='mlp_baseline_2', help='exp_name')
+    parser.add_argument('--use_tb', action='store_true', default=True, help='use_tensorboard')
+    parser.add_argument('--exp_name', type=str, default='multiheadattention1', help='exp_name')
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--epochs', type=int, default=10)
