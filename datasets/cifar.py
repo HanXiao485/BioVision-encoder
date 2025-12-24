@@ -27,7 +27,7 @@ class CIFAR10Manager:
         )
 
 class CIFAR100Manager:
-    def __init__(self, root='./data', batch_size=64, num_workers=2):
+    def __init__(self, root='/home/xiaohan/BioVision-encoder/data', batch_size=64, num_workers=2):
         self.root = root
         self.batch_size = batch_size
         self.num_workers = num_workers
