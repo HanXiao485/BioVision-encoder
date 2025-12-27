@@ -264,10 +264,10 @@ def main(args):
         patch_size=16,
         in_channels=3,
         num_classes=1000,
-        embed_dim=512,
-        num_layers=6,
-        num_heads=8,
-        mlp_dim=1024
+        embed_dim=768,
+        num_layers=12,
+        num_heads=12,
+        mlp_dim=3072
     )
 
 
@@ -330,7 +330,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--use_tb", default=True, action="store_true")
-    parser.add_argument("--exp_name", type=str, default="vit-6-imagenet")
+    parser.add_argument("--exp_name", type=str, default="vit-12-imagenet")
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--scheduler", type=str, default="cosine",
