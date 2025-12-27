@@ -24,6 +24,7 @@ class Classifier(pl.LightningModule):
     def __init__(self, 
                  model, 
                  lr=1e-3,
+                 weight_decay=1e-4,
                  scheduler_type="step",     # step | cosine | onecycle | plateau
                  step_size=5,
                  gamma=0.1,
@@ -32,6 +33,7 @@ class Classifier(pl.LightningModule):
         super().__init__()
         self.model = model
         self.lr = lr
+        self.weight_decay = weight_decay
         self.scheduler_type = scheduler_type
         self.step_size = step_size
         self.gamma = gamma
@@ -71,7 +73,11 @@ class Classifier(pl.LightningModule):
         self.log("val/acc", acc * 100.0, prog_bar=True, sync_dist=True)
 
     def configure_optimizers(self):
-        optimizer = optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = optim.AdamW(
+            self.parameters(),
+            lr=self.lr,
+            weight_decay=self.weight_decay
+        )
 
         if self.scheduler_type == "step":
             scheduler = optim.lr_scheduler.StepLR(
@@ -267,13 +273,15 @@ def main(args):
         embed_dim=768,
         num_layers=12,
         num_heads=12,
-        mlp_dim=3072
+        mlp_dim=3072,
+        dropout=0.1
     )
 
 
     model = Classifier(
         backbone,
         lr=args.lr,
+        weight_decay=args.weight_decay,
         scheduler_type=args.scheduler,
         step_size=args.step_size,
         gamma=args.gamma,
@@ -330,25 +338,17 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--use_tb", default=True, action="store_true")
-    parser.add_argument("--exp_name", type=str, default="vit-12-imagenet")
+    parser.add_argument("--exp_name", type=str, default="ViT-B16-imagenet1K")
     parser.add_argument("--batch_size", type=int, default=128)
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--scheduler", type=str, default="cosine",
-                    choices=["step", "cosine", "onecycle", "plateau"])
-    parser.add_argument(
-        "--precision",
-        type=str,
-        default="16-mixed",
-        choices=["32", "16", "bf16", "16-mixed", "bf16-mixed"],
-        help="Training precision mode"
-    )
-
+    parser.add_argument("--lr", type=float, default=3e-3)
+    parser.add_argument("--weight_decay",type=float,default=0.3,help="Weight decay for AdamW")
+    parser.add_argument("--scheduler", type=str, default="cosine",choices=["step", "cosine", "onecycle", "plateau"])
+    parser.add_argument("--precision",type=str,default="16-mixed",choices=["32", "16", "bf16", "16-mixed", "bf16-mixed"],help="Training precision mode")
     parser.add_argument("--step_size", type=int, default=5)
     parser.add_argument("--gamma", type=float, default=0.1)
-
     parser.add_argument("--min_lr", type=float, default=1e-7)
     parser.add_argument("--max_lr", type=float, default=1e-3)
-    parser.add_argument("--epochs", type=int, default=1000000)
+    parser.add_argument("--epochs", type=int, default=300)
     parser.add_argument("--gpus", type=str, default=None)
 
     args = parser.parse_args()
